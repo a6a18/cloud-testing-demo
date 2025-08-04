@@ -1,0 +1,46 @@
+services:
+    # API 服務節點 (可擴展)
+    api:
+        build: ./api
+        # 移除端口映射，讓Nginx通過內部網絡訪問
+        environment:
+            - FLASK_ENV=development
+            - NODE_ID=${NODE_ID:-1}
+        volumes:
+            - ./api:/app
+        networks:
+            - cloud-testing-network
+        restart: unless-stopped
+        # 為每個容器設置不同的節點ID
+        deploy:
+            replicas: 1
+
+    # Nginx 負載平衡器
+    nginx:
+        image: nginx:alpine
+        ports:
+            - '80:80'
+        volumes:
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+        depends_on:
+            - api
+        networks:
+            - cloud-testing-network
+        restart: unless-stopped
+
+    # 測試服務
+    tests:
+        build: ./tests
+        volumes:
+            - ./tests:/app
+        depends_on:
+            - nginx
+        networks:
+            - cloud-testing-network
+        environment:
+            - API_BASE_URL=http://nginx
+            - TEST_TOKEN=test_token_123
+
+networks:
+    cloud-testing-network:
+        driver: bridge

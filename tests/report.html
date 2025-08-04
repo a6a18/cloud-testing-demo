@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>report.html</title>
+    <style>body {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  /* do not increase min-width as some may use split screens */
+  min-width: 800px;
+  color: #999;
+}
+
+h1 {
+  font-size: 24px;
+  color: black;
+}
+
+h2 {
+  font-size: 16px;
+  color: black;
+}
+
+p {
+  color: black;
+}
+
+a {
+  color: #999;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+/******************************
+ * SUMMARY INFORMATION
+ ******************************/
+#environment td {
+  padding: 5px;
+  border: 1px solid #E6E6E6;
+}
+#environment tr:nth-child(odd) {
+  background-color: #f6f6f6;
+}
+
+/******************************
+ * TEST RESULT COLORS
+ ******************************/
+span.passed,
+.passed .col-result {
+  color: green;
+}
+
+span.skipped,
+span.xfailed,
+span.rerun,
+.skipped .col-result,
+.xfailed .col-result,
+.rerun .col-result {
+  color: orange;
+}
+
+span.error,
+span.failed,
+span.xpassed,
+.error .col-result,
+.failed .col-result,
+.xpassed .col-result {
+  color: red;
+}
+
+/******************************
+ * RESULTS TABLE
+ *
+ * 1. Table Layout
+ * 2. Extra
+ * 3. Sorting items
+ *
+ ******************************/
+/*------------------
+ * 1. Table Layout
+ *------------------*/
+#results-table {
+  border: 1px solid #e6e6e6;
+  color: #999;
+  font-size: 12px;
+  width: 100%;
+}
+#results-table th,
+#results-table td {
+  padding: 5px;
+  border: 1px solid #E6E6E6;
+  text-align: left;
+}
+#results-table th {
+  font-weight: bold;
+}
+
+/*------------------
+ * 2. Extra
+ *------------------*/
+.log {
+  background-color: #e6e6e6;
+  border: 1px solid #e6e6e6;
+  color: black;
+  display: block;
+  font-family: "Courier New", Courier, monospace;
+  height: 230px;
+  overflow-y: scroll;
+  padding: 5px;
+  white-space: pre-wrap;
+}
+.log:only-child {
+  height: inherit;
+}
+
+div.image {
+  border: 1px solid #e6e6e6;
+  float: right;
+  height: 240px;
+  margin-left: 5px;
+  overflow: hidden;
+  width: 320px;
+}
+div.image img {
+  width: 320px;
+}
+
+div.video {
+  border: 1px solid #e6e6e6;
+  float: right;
+  height: 240px;
+  margin-left: 5px;
+  overflow: hidden;
+  width: 320px;
+}
+div.video video {
+  overflow: hidden;
+  width: 320px;
+  height: 240px;
+}
+
+.collapsed {
+  display: none;
+}
+
+.expander::after {
+  content: " (show details)";
+  color: #BBB;
+  font-style: italic;
+  cursor: pointer;
+}
+
+.collapser::after {
+  content: " (hide details)";
+  color: #BBB;
+  font-style: italic;
+  cursor: pointer;
+}
+
+/*------------------
+ * 3. Sorting items
+ *------------------*/
+.sortable {
+  cursor: pointer;
+}
+
+.sort-icon {
+  font-size: 0px;
+  float: left;
+  margin-right: 5px;
+  margin-top: 5px;
+  /*triangle*/
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+}
+.inactive .sort-icon {
+  /*finish triangle*/
+  border-top: 8px solid #E6E6E6;
+}
+.asc.active .sort-icon {
+  /*finish triangle*/
+  border-bottom: 8px solid #999;
+}
+.desc.active .sort-icon {
+  /*finish triangle*/
+  border-top: 8px solid #999;
+}
+</style></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 04-Aug-2025 at 17:33:53 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Summary</h2>
+    <p>18 tests ran in 12.48 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">17 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">1 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_api.py::TestAPIFailover::test_timeout_handling</td>
+          <td class="col-duration">5.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;urllib3.connectionpool.HTTPConnectionPool object at 0x74392be32a30&gt;<br/>conn = &lt;urllib3.connection.HTTPConnection object at 0x74392be32f40&gt;<br/>method = &#x27;GET&#x27;, url = &#x27;/api/v1/error-test?type=timeout&#x27;, body = None<br/>headers = {&#x27;User-Agent&#x27;: &#x27;python-requests/2.31.0&#x27;, &#x27;Accept-Encoding&#x27;: &#x27;gzip, deflate&#x27;, &#x27;Accept&#x27;: &#x27;*/*&#x27;, &#x27;Connection&#x27;: &#x27;keep-alive&#x27;}<br/>retries = Retry(total=0, connect=None, read=False, redirect=None, status=None)<br/>timeout = Timeout(connect=5, read=5, total=None), chunked = False<br/>response_conn = &lt;urllib3.connection.HTTPConnection object at 0x74392be32f40&gt;<br/>preload_content = False, decode_content = False, enforce_content_length = True<br/><br/>    def _make_request(<br/>        self,<br/>        conn: BaseHTTPConnection,<br/>        method: str,<br/>        url: str,<br/>        body: _TYPE_BODY | None = None,<br/>        headers: typing.Mapping[str, str] | None = None,<br/>        retries: Retry | None = None,<br/>        timeout: _TYPE_TIMEOUT = _DEFAULT_TIMEOUT,<br/>        chunked: bool = False,<br/>        response_conn: BaseHTTPConnection | None = None,<br/>        preload_content: bool = True,<br/>        decode_content: bool = True,<br/>        enforce_content_length: bool = True,<br/>    ) -&gt; BaseHTTPResponse:<br/>        &quot;&quot;&quot;<br/>        Perform a request on a given urllib connection object taken from our<br/>        pool.<br/>    <br/>        :param conn:<br/>            a connection from one of our connection pools<br/>    <br/>        :param method:<br/>            HTTP request method (such as GET, POST, PUT, etc.)<br/>    <br/>        :param url:<br/>            The URL to perform the request on.<br/>    <br/>        :param body:<br/>            Data to send in the request body, either :class:`str`, :class:`bytes`,<br/>            an iterable of :class:`str`/:class:`bytes`, or a file-like object.<br/>    <br/>        :param headers:<br/>            Dictionary of custom headers to send, such as User-Agent,<br/>            If-None-Match, etc. If None, pool headers are used. If provided,<br/>            these headers completely replace any pool-specific headers.<br/>    <br/>        :param retries:<br/>            Configure the number of retries to allow before raising a<br/>            :class:`~urllib3.exceptions.MaxRetryError` exception.<br/>    <br/>            Pass ``None`` to retry until you receive a response. Pass a<br/>            :class:`~urllib3.util.retry.Retry` object for fine-grained control<br/>            over different types of retries.<br/>            Pass an integer number to retry connection errors that many times,<br/>            but no other types of errors. Pass zero to never retry.<br/>    <br/>            If ``False``, then retries are disabled and any exception is raised<br/>            immediately. Also, instead of raising a MaxRetryError on redirects,<br/>            the redirect response will be returned.<br/>    <br/>        :type retries: :class:`~urllib3.util.retry.Retry`, False, or an int.<br/>    <br/>        :param timeout:<br/>            If specified, overrides the default timeout for this one<br/>            request. It may be a float (in seconds) or an instance of<br/>            :class:`urllib3.util.Timeout`.<br/>    <br/>        :param chunked:<br/>            If True, urllib3 will send the body using chunked transfer<br/>            encoding. Otherwise, urllib3 will send the body using the standard<br/>            content-length form. Defaults to False.<br/>    <br/>        :param response_conn:<br/>            Set this to ``None`` if you will handle releasing the connection or<br/>            set the connection to have the response release it.<br/>    <br/>        :param preload_content:<br/>          If True, the response&#x27;s body will be preloaded during construction.<br/>    <br/>        :param decode_content:<br/>            If True, will attempt to decode the body based on the<br/>            &#x27;content-encoding&#x27; header.<br/>    <br/>        :param enforce_content_length:<br/>            Enforce content length checking. Body returned by server must match<br/>            value of Content-Length header, if present. Otherwise, raise error.<br/>        &quot;&quot;&quot;<br/>        self.num_requests += 1<br/>    <br/>        timeout_obj = self._get_timeout(timeout)<br/>        timeout_obj.start_connect()<br/>        conn.timeout = Timeout.resolve_default_timeout(timeout_obj.connect_timeout)<br/>    <br/>        try:<br/>            # Trigger any extra validation we need to do.<br/>            try:<br/>                self._validate_conn(conn)<br/>            except (SocketTimeout, BaseSSLError) as e:<br/>                self._raise_timeout(err=e, url=url, timeout_value=conn.timeout)<br/>                raise<br/>    <br/>        # _validate_conn() starts the connection to an HTTPS proxy<br/>        # so we need to wrap errors with &#x27;ProxyError&#x27; here too.<br/>        except (<br/>            OSError,<br/>            NewConnectionError,<br/>            TimeoutError,<br/>            BaseSSLError,<br/>            CertificateError,<br/>            SSLError,<br/>        ) as e:<br/>            new_e: Exception = e<br/>            if isinstance(e, (BaseSSLError, CertificateError)):<br/>                new_e = SSLError(e)<br/>            # If the connection didn&#x27;t successfully connect to it&#x27;s proxy<br/>            # then there<br/>            if isinstance(<br/>                new_e, (OSError, NewConnectionError, TimeoutError, SSLError)<br/>            ) and (conn and conn.proxy and not conn.has_connected_to_proxy):<br/>                new_e = _wrap_proxy_error(new_e, conn.proxy.scheme)<br/>            raise new_e<br/>    <br/>        # conn.request() calls http.client.*.request, not the method in<br/>        # urllib3.request. It also calls makefile (recv) on the socket.<br/>        try:<br/>            conn.request(<br/>                method,<br/>                url,<br/>                body=body,<br/>                headers=headers,<br/>                chunked=chunked,<br/>                preload_content=preload_content,<br/>                decode_content=decode_content,<br/>                enforce_content_length=enforce_content_length,<br/>            )<br/>    <br/>        # We are swallowing BrokenPipeError (errno.EPIPE) since the server is<br/>        # legitimately able to close the connection after sending a valid response.<br/>        # With this behaviour, the received response is still readable.<br/>        except BrokenPipeError:<br/>            pass<br/>        except OSError as e:<br/>            # MacOS/Linux<br/>            # EPROTOTYPE and ECONNRESET are needed on macOS<br/>            # https://erickt.github.io/blog/2014/11/19/adventures-in-debugging-a-potential-osx-kernel-bug/<br/>            # Condition changed later to emit ECONNRESET instead of only EPROTOTYPE.<br/>            if e.errno != errno.EPROTOTYPE and e.errno != errno.ECONNRESET:<br/>                raise<br/>    <br/>        # Reset the timeout for the recv() on the socket<br/>        read_timeout = timeout_obj.read_timeout<br/>    <br/>        if not conn.is_closed:<br/>            # In Python 3 socket.py will catch EAGAIN and return None when you<br/>            # try and read into the file pointer created by http.client, which<br/>            # instead raises a BadStatusLine exception. Instead of catching<br/>            # the exception and assuming all BadStatusLine exceptions are read<br/>            # timeouts, check for a zero timeout before making the request.<br/>            if read_timeout == 0:<br/>                raise ReadTimeoutError(<br/>                    self, url, f&quot;Read timed out. (read timeout={read_timeout})&quot;<br/>                )<br/>            conn.timeout = read_timeout<br/>    <br/>        # Receive the response from the server<br/>        try:<br/>&gt;           response = conn.getresponse()<br/><br/>/usr/local/lib/python3.9/site-packages/urllib3/connectionpool.py:534: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>/usr/local/lib/python3.9/site-packages/urllib3/connection.py:565: in getresponse<br/>    httplib_response = super().getresponse()<br/>/usr/local/lib/python3.9/http/client.py:1377: in getresponse<br/>    response.begin()<br/>/usr/local/lib/python3.9/http/client.py:320: in begin<br/>    version, status, reason = self._read_status()<br/>/usr/local/lib/python3.9/http/client.py:281: in _read_status<br/>    line = str(self.fp.readline(_MAXLINE + 1), &quot;iso-8859-1&quot;)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;socket.SocketIO object at 0x74392be32df0&gt;<br/>b = &lt;memory at 0x74392bec8d00&gt;<br/><br/>    def readinto(self, b):<br/>        &quot;&quot;&quot;Read up to len(b) bytes into the writable buffer *b* and return<br/>        the number of bytes read.  If the socket is non-blocking and no bytes<br/>        are available, None is returned.<br/>    <br/>        If *b* is non-empty, a 0 return value indicates that the connection<br/>        was shutdown at the other end.<br/>        &quot;&quot;&quot;<br/>        self._checkClosed()<br/>        self._checkReadable()<br/>        if self._timeout_occurred:<br/>            raise OSError(&quot;cannot read from timed out object&quot;)<br/>        while True:<br/>            try:<br/>&gt;               return self._sock.recv_into(b)<br/><span class="error">E               socket.timeout: timed out</span><br/><br/>/usr/local/lib/python3.9/socket.py:716: timeout<br/><br/>The above exception was the direct cause of the following exception:<br/><br/>self = &lt;requests.adapters.HTTPAdapter object at 0x74392be32fd0&gt;<br/>request = &lt;PreparedRequest [GET]&gt;, stream = False<br/>timeout = Timeout(connect=5, read=5, total=None), verify = True, cert = None<br/>proxies = OrderedDict()<br/><br/>    def send(<br/>        self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None<br/>    ):<br/>        &quot;&quot;&quot;Sends PreparedRequest object. Returns Response object.<br/>    <br/>        :param request: The :class:`PreparedRequest &lt;PreparedRequest&gt;` being sent.<br/>        :param stream: (optional) Whether to stream the request content.<br/>        :param timeout: (optional) How long to wait for the server to send<br/>            data before giving up, as a float, or a :ref:`(connect timeout,<br/>            read timeout) &lt;timeouts&gt;` tuple.<br/>        :type timeout: float or tuple or urllib3 Timeout object<br/>        :param verify: (optional) Either a boolean, in which case it controls whether<br/>            we verify the server&#x27;s TLS certificate, or a string, in which case it<br/>            must be a path to a CA bundle to use<br/>        :param cert: (optional) Any user-provided SSL certificate to be trusted.<br/>        :param proxies: (optional) The proxies dictionary to apply to the request.<br/>        :rtype: requests.Response<br/>        &quot;&quot;&quot;<br/>    <br/>        try:<br/>            conn = self.get_connection(request.url, proxies)<br/>        except LocationValueError as e:<br/>            raise InvalidURL(e, request=request)<br/>    <br/>        self.cert_verify(conn, request.url, verify, cert)<br/>        url = self.request_url(request, proxies)<br/>        self.add_headers(<br/>            request,<br/>            stream=stream,<br/>            timeout=timeout,<br/>            verify=verify,<br/>            cert=cert,<br/>            proxies=proxies,<br/>        )<br/>    <br/>        chunked = not (request.body is None or &quot;Content-Length&quot; in request.headers)<br/>    <br/>        if isinstance(timeout, tuple):<br/>            try:<br/>                connect, read = timeout<br/>                timeout = TimeoutSauce(connect=connect, read=read)<br/>            except ValueError:<br/>                raise ValueError(<br/>                    f&quot;Invalid timeout {timeout}. Pass a (connect, read) timeout tuple, &quot;<br/>                    f&quot;or a single float to set both timeouts to the same value.&quot;<br/>                )<br/>        elif isinstance(timeout, TimeoutSauce):<br/>            pass<br/>        else:<br/>            timeout = TimeoutSauce(connect=timeout, read=timeout)<br/>    <br/>        try:<br/>&gt;           resp = conn.urlopen(<br/>                method=request.method,<br/>                url=url,<br/>                body=request.body,<br/>                headers=request.headers,<br/>                redirect=False,<br/>                assert_same_host=False,<br/>                preload_content=False,<br/>                decode_content=False,<br/>                retries=self.max_retries,<br/>                timeout=timeout,<br/>                chunked=chunked,<br/>            )<br/><br/>/usr/local/lib/python3.9/site-packages/requests/adapters.py:486: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>/usr/local/lib/python3.9/site-packages/urllib3/connectionpool.py:841: in urlopen<br/>    retries = retries.increment(<br/>/usr/local/lib/python3.9/site-packages/urllib3/util/retry.py:474: in increment<br/>    raise reraise(type(error), error, _stacktrace)<br/>/usr/local/lib/python3.9/site-packages/urllib3/util/util.py:39: in reraise<br/>    raise value<br/>/usr/local/lib/python3.9/site-packages/urllib3/connectionpool.py:787: in urlopen<br/>    response = self._make_request(<br/>/usr/local/lib/python3.9/site-packages/urllib3/connectionpool.py:536: in _make_request<br/>    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;urllib3.connectionpool.HTTPConnectionPool object at 0x74392be32a30&gt;<br/>err = timeout(&#x27;timed out&#x27;), url = &#x27;/api/v1/error-test?type=timeout&#x27;<br/>timeout_value = 5<br/><br/>    def _raise_timeout(<br/>        self,<br/>        err: BaseSSLError | OSError | SocketTimeout,<br/>        url: str,<br/>        timeout_value: _TYPE_TIMEOUT | None,<br/>    ) -&gt; None:<br/>        &quot;&quot;&quot;Is the error actually a timeout? Will raise a ReadTimeout or pass&quot;&quot;&quot;<br/>    <br/>        if isinstance(err, SocketTimeout):<br/>&gt;           raise ReadTimeoutError(<br/>                self, url, f&quot;Read timed out. (read timeout={timeout_value})&quot;<br/>            ) from err<br/><span class="error">E           urllib3.exceptions.ReadTimeoutError: HTTPConnectionPool(host=&#x27;nginx&#x27;, port=80): Read timed out. (read timeout=5)</span><br/><br/>/usr/local/lib/python3.9/site-packages/urllib3/connectionpool.py:367: ReadTimeoutError<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>self = &lt;test_api.TestAPIFailover object at 0x74392be3dee0&gt;<br/><br/>    def test_timeout_handling(self):<br/>        &quot;&quot;&quot;測試超時處理&quot;&quot;&quot;<br/>        start_time = time.time()<br/>&gt;       response = requests.get(<br/>            f&quot;{API_BASE_URL}/api/v1/error-test?type=timeout&quot;,<br/>            timeout=5<br/>        )<br/><br/>test_api.py:178: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>/usr/local/lib/python3.9/site-packages/requests/api.py:73: in get<br/>    return request(&quot;get&quot;, url, params=params, **kwargs)<br/>/usr/local/lib/python3.9/site-packages/requests/api.py:59: in request<br/>    return session.request(method=method, url=url, **kwargs)<br/>/usr/local/lib/python3.9/site-packages/requests/sessions.py:589: in request<br/>    resp = self.send(prep, **send_kwargs)<br/>/usr/local/lib/python3.9/site-packages/requests/sessions.py:703: in send<br/>    r = adapter.send(request, **kwargs)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;requests.adapters.HTTPAdapter object at 0x74392be32fd0&gt;<br/>request = &lt;PreparedRequest [GET]&gt;, stream = False<br/>timeout = Timeout(connect=5, read=5, total=None), verify = True, cert = None<br/>proxies = OrderedDict()<br/><br/>    def send(<br/>        self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None<br/>    ):<br/>        &quot;&quot;&quot;Sends PreparedRequest object. Returns Response object.<br/>    <br/>        :param request: The :class:`PreparedRequest &lt;PreparedRequest&gt;` being sent.<br/>        :param stream: (optional) Whether to stream the request content.<br/>        :param timeout: (optional) How long to wait for the server to send<br/>            data before giving up, as a float, or a :ref:`(connect timeout,<br/>            read timeout) &lt;timeouts&gt;` tuple.<br/>        :type timeout: float or tuple or urllib3 Timeout object<br/>        :param verify: (optional) Either a boolean, in which case it controls whether<br/>            we verify the server&#x27;s TLS certificate, or a string, in which case it<br/>            must be a path to a CA bundle to use<br/>        :param cert: (optional) Any user-provided SSL certificate to be trusted.<br/>        :param proxies: (optional) The proxies dictionary to apply to the request.<br/>        :rtype: requests.Response<br/>        &quot;&quot;&quot;<br/>    <br/>        try:<br/>            conn = self.get_connection(request.url, proxies)<br/>        except LocationValueError as e:<br/>            raise InvalidURL(e, request=request)<br/>    <br/>        self.cert_verify(conn, request.url, verify, cert)<br/>        url = self.request_url(request, proxies)<br/>        self.add_headers(<br/>            request,<br/>            stream=stream,<br/>            timeout=timeout,<br/>            verify=verify,<br/>            cert=cert,<br/>            proxies=proxies,<br/>        )<br/>    <br/>        chunked = not (request.body is None or &quot;Content-Length&quot; in request.headers)<br/>    <br/>        if isinstance(timeout, tuple):<br/>            try:<br/>                connect, read = timeout<br/>                timeout = TimeoutSauce(connect=connect, read=read)<br/>            except ValueError:<br/>                raise ValueError(<br/>                    f&quot;Invalid timeout {timeout}. Pass a (connect, read) timeout tuple, &quot;<br/>                    f&quot;or a single float to set both timeouts to the same value.&quot;<br/>                )<br/>        elif isinstance(timeout, TimeoutSauce):<br/>            pass<br/>        else:<br/>            timeout = TimeoutSauce(connect=timeout, read=timeout)<br/>    <br/>        try:<br/>            resp = conn.urlopen(<br/>                method=request.method,<br/>                url=url,<br/>                body=request.body,<br/>                headers=request.headers,<br/>                redirect=False,<br/>                assert_same_host=False,<br/>                preload_content=False,<br/>                decode_content=False,<br/>                retries=self.max_retries,<br/>                timeout=timeout,<br/>                chunked=chunked,<br/>            )<br/>    <br/>        except (ProtocolError, OSError) as err:<br/>            raise ConnectionError(err, request=request)<br/>    <br/>        except MaxRetryError as e:<br/>            if isinstance(e.reason, ConnectTimeoutError):<br/>                # TODO: Remove this in 3.0.0: see #2811<br/>                if not isinstance(e.reason, NewConnectionError):<br/>                    raise ConnectTimeout(e, request=request)<br/>    <br/>            if isinstance(e.reason, ResponseError):<br/>                raise RetryError(e, request=request)<br/>    <br/>            if isinstance(e.reason, _ProxyError):<br/>                raise ProxyError(e, request=request)<br/>    <br/>            if isinstance(e.reason, _SSLError):<br/>                # This branch is for urllib3 v1.22 and later.<br/>                raise SSLError(e, request=request)<br/>    <br/>            raise ConnectionError(e, request=request)<br/>    <br/>        except ClosedPoolError as e:<br/>            raise ConnectionError(e, request=request)<br/>    <br/>        except _ProxyError as e:<br/>            raise ProxyError(e)<br/>    <br/>        except (_SSLError, _HTTPError) as e:<br/>            if isinstance(e, _SSLError):<br/>                # This branch is for urllib3 versions earlier than v1.22<br/>                raise SSLError(e, request=request)<br/>            elif isinstance(e, ReadTimeoutError):<br/>&gt;               raise ReadTimeout(e, request=request)<br/><span class="error">E               requests.exceptions.ReadTimeout: HTTPConnectionPool(host=&#x27;nginx&#x27;, port=80): Read timed out. (read timeout=5)</span><br/><br/>/usr/local/lib/python3.9/site-packages/requests/adapters.py:532: ReadTimeout<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIAuthentication::test_health_check_no_auth</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIAuthentication::test_status_endpoint_no_auth</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIAuthentication::test_users_endpoint_with_valid_token</td>
+          <td class="col-duration">0.23</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIAuthentication::test_users_endpoint_without_token</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIAuthentication::test_users_endpoint_with_invalid_token</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIUserManagement::test_create_user_with_admin_token</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIUserManagement::test_create_user_with_user_token</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIUserManagement::test_create_user_missing_required_field</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIUserManagement::test_delete_user_with_admin_token</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIUserManagement::test_delete_user_with_user_token</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPILoadBalancing::test_load_balancing_distribution</td>
+          <td class="col-duration">5.75</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPILoadBalancing::test_concurrent_requests</td>
+          <td class="col-duration">0.93</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIFailover::test_error_endpoints</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIPerformance::test_response_time</td>
+          <td class="col-duration">0.23</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPIPerformance::test_health_check_performance</td>
+          <td class="col-duration">0.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPISecurity::test_sql_injection_prevention</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_api.py::TestAPISecurity::test_xss_prevention</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody></table></body></html>
