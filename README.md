@@ -30,7 +30,7 @@
 
 1. **克隆項目**
 ```bash
-git clone <repository-url>
+git clone https://github.com/a6a18/cloud-testing-demo.git
 cd cloud-testing
 ```
 
