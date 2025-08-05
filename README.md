@@ -31,7 +31,7 @@
 1. **克隆項目**
 ```bash
 git clone https://github.com/a6a18/cloud-testing-demo.git
-cd cloud-testing
+cd cloud-testing-demo
 ```
 
 2. **啟動環境**
