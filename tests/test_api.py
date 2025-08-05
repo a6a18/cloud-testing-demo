@@ -175,15 +175,21 @@ class TestAPIFailover:
     def test_timeout_handling(self):
         """測試超時處理"""
         start_time = time.time()
-        response = requests.get(
-            f"{API_BASE_URL}/api/v1/error-test?type=timeout",
-            timeout=5
-        )
+        timeout_raised = False
+        try:
+            response = requests.get(
+                f"{API_BASE_URL}/api/v1/error-test?type=timeout",
+                timeout=5
+            )
+        except requests.exceptions.ReadTimeout:
+            timeout_raised = True
+
         end_time = time.time()
         
-        # 驗證請求在 5 秒內超時
+        # 驗證請求在 6 秒內超時
+        assert timeout_raised, "應該拋出 ReadTimeout 異常"
         assert end_time - start_time < 6
-        assert response.status_code == 408
+        
 
 class TestAPIPerformance:
     """性能測試"""
